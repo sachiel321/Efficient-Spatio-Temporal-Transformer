@@ -60,14 +60,15 @@ config_ppo = {
     'InitDict':{
         'state_dim': None,
         'mid_dim':128,
-        'attembedding' : 32,
-        'critic_embedd':128,
-        'atthead': 2,
-        'attlayer': 2,
+        'embeddingT' : 32,
+        'embeddingS':64,
+        'atthead': 4,
+        'attlayer': 1,
         'action_dim': None,
         'block_size': 6,
         'block_size_state':6,
         'batch_size': 256,
+        'use_TS': True,
         'use_GTrXL':True,
         'use_attbias':True,
         'init_gru_gate_bias':2.0
@@ -78,13 +79,13 @@ config_ppo = {
 def demo2_ppo():
 
     env = {
-        'id': 'Walker2d-v2',
+        'id': 'LunarLanderContinuous-v2',
         'state_dim': 37,
         'action_dim': 9,
         'if_discrete_action': False,
         'reward_dim': 1,
         'target_reward': 2e6,
-        'max_step': 1000,
+        'max_step': 150,
         'action_mode': 'joint_positions'
     }
     config_ppo['InitDict']['state_dim'] = env['state_dim']
@@ -95,9 +96,9 @@ def demo2_ppo():
     config_ppo['agent']['critic_path'] = ''
     config_ppo['agent']['lambda_entropy'] = 0.05
     config_ppo['agent']['lambda_gae_adv'] = 0.97
-    config_ppo['interactor']['rollout_num'] = 20
+    config_ppo['interactor']['rollout_num'] = 6
     config_ppo['agent']['learning_rate'] = 1e-4
-    config_ppo['trainer']['batch_size'] = 4096*2
+    config_ppo['trainer']['batch_size'] = 4096
     config_ppo['trainer']['sample_step'] = env['max_step'] * 64
     config_ppo['InitDict']['batch_size'] = config_ppo['trainer']['batch_size']
     config_ppo['interactor']['horizon_step'] = config_ppo['trainer']['sample_step']
@@ -106,7 +107,7 @@ def demo2_ppo():
     config_ppo['evaluator']['break_step'] = int(2e5)
     config_ppo['buffer']['max_buf'] = config_ppo['interactor']['horizon_step']
     config_ppo['env'] = env
-    config_ppo['gpu_id'] = '1'
+    config_ppo['gpu_id'] = '2'
     config_ppo['if_cwd_time'] = True
     config_ppo['expconfig'] = 'TS'
     if config_ppo['InitDict']['use_GTrXL'] and config_ppo['InitDict']['use_attbias']:
@@ -117,7 +118,7 @@ def demo2_ppo():
         config_ppo['expconfig'] = config_ppo['expconfig']+'attbias'
     else:
         config_ppo['expconfig'] = config_ppo['expconfig']+'att'
-    config_ppo['random_seed'] = 48
+    config_ppo['random_seed'] = 58
     beginer(config_ppo)
 
 

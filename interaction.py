@@ -298,33 +298,33 @@ def make_env(env_dict, id=None):
     #                    actives=[(0, 1000000000, 1, 0)])
     
     return env
-from causal_world.envs.causalworld import CausalWorld
-from causal_world.task_generators.task import generate_task
-from causal_world.wrappers.action_wrappers import DeltaActionEnvWrapper
-from causal_world.intervention_actors import GoalInterventionActorPolicy
-from causal_world.wrappers.curriculum_wrappers import CurriculumWrapper
+#from causal_world.envs.causalworld import CausalWorld
+#from causal_world.task_generators.task import generate_task
+#from causal_world.wrappers.action_wrappers import DeltaActionEnvWrapper
+#from causal_world.intervention_actors import GoalInterventionActorPolicy
+#from causal_world.wrappers.curriculum_wrappers import CurriculumWrapper
 
-class POMDPEnv(gym.Env):
-    def __init__(self,env_dict) -> None:
-        super().__init__()
-        task = generate_task(task_generator_id=env_dict['id'])
-        env = CausalWorld(task=task,action_mode=env_dict['action_mode'],skip_frame=10,max_episode_length=env_dict['max_step'])
-        self.env = CurriculumWrapper(env,
-                      intervention_actors=[GoalInterventionActorPolicy()],
-                      actives=[(0, 1000000000, 1, 0)])
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
-        self.next_state = np.zeros(env.observation_space.shape[0]-9)
-    def step(self, action):
-        temp_next_s, reward, done, info = self.env.step(action)
-        self.next_state[0:10] = temp_next_s[0:10]
-        self.next_state[10:] = temp_next_s[19:]
-        return self.next_state, reward, done, info
-    def reset(self):
-        state = self.env.reset()
-        self.next_state[0:10] = state[0:10]
-        self.next_state[10:] = state[19:]
-        return self.next_state
+#class POMDPEnv(gym.Env):
+#    def __init__(self,env_dict) -> None:
+#        super().__init__()
+#        task = generate_task(task_generator_id=env_dict['id'])
+#        env = CausalWorld(task=task,action_mode=env_dict['action_mode'],skip_frame=10,max_episode_length=env_dict['max_step'])
+#        self.env = CurriculumWrapper(env,
+#                      intervention_actors=[GoalInterventionActorPolicy()],
+#                      actives=[(0, 1000000000, 1, 0)])
+#        self.observation_space = env.observation_space
+#        self.action_space = env.action_space
+#        self.next_state = np.zeros(env.observation_space.shape[0]-9)
+#    def step(self, action):
+#        temp_next_s, reward, done, info = self.env.step(action)
+#        self.next_state[0:10] = temp_next_s[0:10]
+#        self.next_state[10:] = temp_next_s[19:]
+#        return self.next_state, reward, done, info
+#    def reset(self):
+#        state = self.env.reset()
+#        self.next_state[0:10] = state[0:10]
+#        self.next_state[10:] = state[19:]
+#        return self.next_state
 
 # def make_env(env_dict, id=None):
 #     # task = generate_task(task_generator_id=env_dict['id'])

@@ -192,7 +192,7 @@ class BlockGTrXLTS(nn.Module):
         super().__init__()
         configS = deepcopy(config)
         configT = deepcopy(config)
-        configS.n_embd = configT.block_size
+        configS.n_embd = config.n_embdS
         configS.block_size = configT.n_embd
 
         self.ln1T = nn.LayerNorm(configT.n_embd)
@@ -206,6 +206,9 @@ class BlockGTrXLTS(nn.Module):
         )
         self.gate1T = GRUGate(configT.n_embd, configT.init_gru_gate_bias)
         self.gate2T = GRUGate(configT.n_embd, configT.init_gru_gate_bias)
+
+        self.transformT2S = nn.Linear(configT.block_size, configS.n_embd)
+        self.transformS2T = nn.Linear(configS.n_embd, configT.block_size)
 
         self.ln1S = nn.LayerNorm(configS.n_embd)
         self.ln2S = nn.LayerNorm(configS.n_embd)
@@ -224,15 +227,16 @@ class BlockGTrXLTS(nn.Module):
         q = self.gate1T((q,att_outputT))
         q = self.gate2T((q,self.mlpT(self.ln2T(q))))
 
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
+        q = self.transformT2S(q.transpose(1, 2))
+        k = self.transformT2S(k.transpose(1, 2))
+        v = self.transformT2S(v.transpose(1, 2))
         # if attn_bias is not None:
         #     attn_bias = attn_bias.transpose(1, 2)
 
         att_outputS, layer_attS = self.attnS(self.ln1S(q),self.ln1S(k),self.ln1S(v),None)
         q = self.gate1S((q,att_outputS))
         q = self.gate2S((q,self.mlpS(self.ln2S(q))))
+        q = self.transformS2T(q)
         return q.transpose(1, 2), layer_attT
 
 from ray.rllib.models.torch.modules import GRUGate, \
@@ -241,7 +245,7 @@ from ray.rllib.models.torch.modules import GRUGate, \
 class BlockSeq(nn.Module):
     def __init__(self,config):
         super().__init__()
-        self.use_TS = True
+        self.use_TS = config.use_TS
         if config.use_GTrXL is True:
             if self.use_TS == True:
                 self.layer = nn.Sequential(*[BlockGTrXLTS(config) for _ in range(config.n_layer)])
@@ -333,7 +337,7 @@ class ActorPPOAtt(nn.Module):
     def __init__(self, InitDict):
         super().__init__()
         state_dim = InitDict['state_dim']
-        mid_dim = InitDict['attembedding']
+        mid_dim = InitDict['embeddingT']
         action_dim = InitDict['action_dim']
         config = GPTConfig(block_size=InitDict['block_size'], 
                             block_size_state=InitDict['block_size_state'], 
@@ -341,8 +345,10 @@ class ActorPPOAtt(nn.Module):
                             n_layer=InitDict['attlayer'],
                             n_head=InitDict['atthead'],
                             mask=False,
-                            n_embd=InitDict['attembedding'],
+                            n_embd=InitDict['embeddingT'],
+                            n_embdS=InitDict['embeddingS'],
                             init_gru_gate_bias=InitDict['init_gru_gate_bias'],
+                            use_TS=InitDict['use_TS'],
                             use_GTrXL=InitDict['use_GTrXL'])
 
         self.netDynamic = ReverseGRD(config)
@@ -393,16 +399,19 @@ class CriticAdvAtt(nn.Module):
         '''
         super().__init__()
         state_dim = InitDict['state_dim']
-        mid_dim = InitDict['attembedding']
+        mid_dim = InitDict['embeddingT']
         action_dim = InitDict['action_dim']
         config = GPTConfig(block_size=InitDict['block_size'], 
+                            block_size_state=InitDict['block_size_state'], 
                             state_dim=state_dim,
                             n_layer=InitDict['attlayer'],
-                            mask=False,
                             n_head=InitDict['atthead'],
-                            n_embd=InitDict['attembedding'],
+                            mask=False,
+                            n_embd=InitDict['embeddingT'],
+                            n_embdS=InitDict['embeddingS'],
                             init_gru_gate_bias=InitDict['init_gru_gate_bias'],
-                            use_GTrXL=InitDict['use_GTrXL'],)
+                            use_TS=InitDict['use_TS'],
+                            use_GTrXL=InitDict['use_GTrXL'])
         self.netDynamic = ReverseGRD(config)
         self.net = nn.Sequential(
                                     nn.Linear(mid_dim, mid_dim), nn.GELU(),
