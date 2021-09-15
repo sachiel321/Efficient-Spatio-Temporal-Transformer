@@ -6,7 +6,7 @@ Install environment dependency by
 requirements.txt 
 ```
 
-Run file 
+Run this file for default config
 ```
 config_and_start.py # Entry file
 ```
