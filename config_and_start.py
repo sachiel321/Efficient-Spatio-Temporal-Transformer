@@ -86,7 +86,7 @@ def demo2_ppo():
         'reward_dim': 1,
         'target_reward': 2e6,
         'max_step': 150,
-        'action_mode': 'joint_positions'
+        #'action_mode': 'joint_positions'
     }
     config_ppo['InitDict']['state_dim'] = env['state_dim']
     config_ppo['InitDict']['action_dim'] = env['action_dim']
@@ -107,7 +107,7 @@ def demo2_ppo():
     config_ppo['evaluator']['break_step'] = int(2e5)
     config_ppo['buffer']['max_buf'] = config_ppo['interactor']['horizon_step']
     config_ppo['env'] = env
-    config_ppo['gpu_id'] = '2'
+    config_ppo['gpu_id'] = '0'
     config_ppo['if_cwd_time'] = True
     config_ppo['expconfig'] = 'TS'
     if config_ppo['InitDict']['use_GTrXL'] and config_ppo['InitDict']['use_attbias']:

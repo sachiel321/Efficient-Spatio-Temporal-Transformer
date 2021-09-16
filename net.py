@@ -90,7 +90,9 @@ class CausalSelfAttention(nn.Module):
 from ray.rllib.utils.typing import ModelConfigDict, TensorType, List
 
 class GRUGate(nn.Module):
-    """Implements a gated recurrent unit for use in AttentionNet"""
+    """Implements a gated recurrent unit for use in AttentionNet
+       From [RLlib](https://github.com/ray-project/ray/tree/master/rllib)
+    """
 
     def __init__(self, dim: int, init_bias: int = 0., **kwargs):
         """
@@ -239,8 +241,8 @@ class BlockGTrXLTS(nn.Module):
         q = self.transformS2T(q)
         return q.transpose(1, 2), layer_attT
 
-from ray.rllib.models.torch.modules import GRUGate, \
-    RelativeMultiHeadAttention, SkipConnection
+# from ray.rllib.models.torch.modules import GRUGate, \
+#     RelativeMultiHeadAttention, SkipConnection
 
 class BlockSeq(nn.Module):
     def __init__(self,config):
@@ -268,8 +270,8 @@ class BlockSeq(nn.Module):
         return q, all_encoder_layers, all_encoder_atts
 
 
-class ReverseGRD(nn.Module):
-    """  the reverse general robot dynamics model, without encoder and decoder """   
+class STT(nn.Module):
+    """  the Efficient Spatio Temporal Transformer """   
 
     def __init__(self, config):
         super().__init__()
@@ -351,7 +353,7 @@ class ActorPPOAtt(nn.Module):
                             use_TS=InitDict['use_TS'],
                             use_GTrXL=InitDict['use_GTrXL'])
 
-        self.netDynamic = ReverseGRD(config)
+        self.netDynamic = STT(config)
         self.netaction = nn.Sequential(nn.Linear(mid_dim, mid_dim), nn.GELU(),
                                     nn.Linear(mid_dim, action_dim),nn.Tanh())
 
@@ -412,7 +414,7 @@ class CriticAdvAtt(nn.Module):
                             init_gru_gate_bias=InitDict['init_gru_gate_bias'],
                             use_TS=InitDict['use_TS'],
                             use_GTrXL=InitDict['use_GTrXL'])
-        self.netDynamic = ReverseGRD(config)
+        self.netDynamic = STT(config)
         self.net = nn.Sequential(
                                     nn.Linear(mid_dim, mid_dim), nn.GELU(),
                                     nn.Linear(mid_dim, 1), 

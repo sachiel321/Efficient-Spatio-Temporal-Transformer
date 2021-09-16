@@ -11,6 +11,9 @@ from IPython import embed
 import logging
 logging.basicConfig(level=logging.INFO)  # 设置日志级别
 
+"""
+Modified from [ElegantRL](https://github.com/AI4Finance-LLC/ElegantRL)
+"""
 
 class AgentBase:
     def __init__(self, args=None):
