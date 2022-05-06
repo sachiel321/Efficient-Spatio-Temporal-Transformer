@@ -66,7 +66,7 @@ config_ppo = {
         'attlayer': 1,
         'action_dim': None,
         'block_size': 6,
-        'block_size_state':6,
+        'block_size_state':1,
         'batch_size': 256,
         'use_TS': True,
         'use_GTrXL':True,
@@ -96,10 +96,10 @@ def demo2_ppo():
     config_ppo['agent']['critic_path'] = ''
     config_ppo['agent']['lambda_entropy'] = 0.05
     config_ppo['agent']['lambda_gae_adv'] = 0.97
-    config_ppo['interactor']['rollout_num'] = 6
-    config_ppo['agent']['learning_rate'] = 1e-4
+    config_ppo['interactor']['rollout_num'] = 40
+    config_ppo['agent']['learning_rate'] = 0.4e-4
     config_ppo['trainer']['batch_size'] = 4096
-    config_ppo['trainer']['sample_step'] = env['max_step'] * 64
+    config_ppo['trainer']['sample_step'] = env['max_step'] * config_ppo['interactor']['rollout_num']
     config_ppo['InitDict']['batch_size'] = config_ppo['trainer']['batch_size']
     config_ppo['interactor']['horizon_step'] = config_ppo['trainer']['sample_step']
     config_ppo['trainer']['policy_reuse'] = 4

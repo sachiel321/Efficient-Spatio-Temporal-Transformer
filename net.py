@@ -90,9 +90,7 @@ class CausalSelfAttention(nn.Module):
 from ray.rllib.utils.typing import ModelConfigDict, TensorType, List
 
 class GRUGate(nn.Module):
-    """Implements a gated recurrent unit for use in AttentionNet
-       From [RLlib](https://github.com/ray-project/ray/tree/master/rllib)
-    """
+    """Implements a gated recurrent unit for use in AttentionNet"""
 
     def __init__(self, dim: int, init_bias: int = 0., **kwargs):
         """
@@ -173,9 +171,9 @@ class BlockGTrXL(nn.Module):
         self.ln2 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
         self.mlp = nn.Sequential(
-            nn.Linear(config.n_embd, 1 * config.n_embd),
+            nn.Linear(config.n_embd, 2 * config.n_embd),
             nn.GELU(),
-            nn.Linear(1 * config.n_embd, config.n_embd),
+            nn.Linear(2 * config.n_embd, config.n_embd),
             nn.Dropout(config.resid_pdrop),
         )
         self.gate1 = GRUGate(config.n_embd, config.init_gru_gate_bias)
@@ -195,7 +193,7 @@ class BlockGTrXLTS(nn.Module):
         configS = deepcopy(config)
         configT = deepcopy(config)
         configS.n_embd = config.n_embdS
-        configS.block_size = configT.n_embd
+        # configS.block_size = configT.n_embd
 
         self.ln1T = nn.LayerNorm(configT.n_embd)
         self.ln2T = nn.LayerNorm(configT.n_embd)
@@ -210,7 +208,8 @@ class BlockGTrXLTS(nn.Module):
         self.gate2T = GRUGate(configT.n_embd, configT.init_gru_gate_bias)
 
         self.transformT2S = nn.Linear(configT.block_size, configS.n_embd)
-        self.transformS2T = nn.Linear(configS.n_embd, configT.block_size)
+        self.transformT2S_q = nn.Linear(configT.block_size_state, configS.n_embd)
+        self.transformS2T = nn.Linear(configS.n_embd, configT.block_size_state)
 
         self.ln1S = nn.LayerNorm(configS.n_embd)
         self.ln2S = nn.LayerNorm(configS.n_embd)
@@ -229,7 +228,7 @@ class BlockGTrXLTS(nn.Module):
         q = self.gate1T((q,att_outputT))
         q = self.gate2T((q,self.mlpT(self.ln2T(q))))
 
-        q = self.transformT2S(q.transpose(1, 2))
+        q = self.transformT2S_q(q.transpose(1, 2))
         k = self.transformT2S(k.transpose(1, 2))
         v = self.transformT2S(v.transpose(1, 2))
         # if attn_bias is not None:
@@ -241,8 +240,8 @@ class BlockGTrXLTS(nn.Module):
         q = self.transformS2T(q)
         return q.transpose(1, 2), layer_attT
 
-# from ray.rllib.models.torch.modules import GRUGate, \
-#     RelativeMultiHeadAttention, SkipConnection
+from ray.rllib.models.torch.modules import GRUGate, \
+    RelativeMultiHeadAttention, SkipConnection
 
 class BlockSeq(nn.Module):
     def __init__(self,config):
@@ -252,13 +251,13 @@ class BlockSeq(nn.Module):
             if self.use_TS == True:
                 self.layer = nn.Sequential(*[BlockGTrXLTS(config) for _ in range(config.n_layer)])
             else:
-                self.layer = nn.Sequential(*[BlockGTrXL(config) for _ in range(config.n_layer)])
+                self.layer = nn.Sequential(*[BlockGTrXL(config) for _ in range(2*config.n_layer)])
         else:
             self.layer = nn.Sequential(*[Block(config) for _ in range(config.n_layer)])
 
     def forward(self,  q,k,v, attn_bias=None):
-        if self.use_TS == True:
-            q = k
+        # if self.use_TS == True:
+        #     q = k
         all_encoder_layers = []
         all_encoder_atts = []
         for _, layer_module in enumerate(self.layer):
@@ -271,7 +270,7 @@ class BlockSeq(nn.Module):
 
 
 class STT(nn.Module):
-    """  the Efficient Spatio Temporal Transformer """   
+    """  the Spatiotemporal Transformer """   
 
     def __init__(self, config):
         super().__init__()
@@ -426,6 +425,54 @@ class CriticAdvAtt(nn.Module):
     def forward(self, state,past_state,att_bias):
         return self.net(self.netDynamic(state,past_state,att_bias))
 
+class CriticAdv(nn.Module):
+    def __init__(self, InitDict):
+        super().__init__()
+        state_dim = InitDict['state_dim']
+        midatt_dim = InitDict['embeddingT']
+        mid_dim = InitDict['mid_dim']
+        action_dim = InitDict['action_dim']
+        if_use_dn = True
+        if isinstance(state_dim, int):
+            if if_use_dn:
+                nn_dense = DenseNet(mid_dim)
+                inp_dim = nn_dense.inp_dim
+                out_dim = nn_dense.out_dim
+
+                self.net = nn.Sequential(nn.Linear(state_dim, inp_dim), nn.ReLU(),
+                                         nn_dense,
+                                         nn.Linear(out_dim, 1), )
+            else:
+                self.net = nn.Sequential(nn.Linear(state_dim, mid_dim), nn.ReLU(),
+                                         nn.Linear(mid_dim, mid_dim), nn.ReLU(),
+                                         nn.Linear(mid_dim, mid_dim), nn.Hardswish(),
+                                         nn.Linear(mid_dim, 1), )
+
+            # self.net = nn.Sequential(nn.Linear(state_dim, mid_dim), nn.ReLU(),
+            #                          nn.Linear(mid_dim, mid_dim), nn.ReLU(),
+            #                          nn.Linear(mid_dim, mid_dim), nn.ReLU(),  # nn.Hardswish(),
+            #                          nn.Linear(mid_dim, 1))
+        else:
+            def set_dim(i):
+                return int(12 * 1.5 ** i)
+
+            self.net = nn.Sequential(NnReshape(*state_dim),  # -> [batch_size, 4, 96, 96]
+                                     nn.Conv2d(state_dim[0], set_dim(0), 4, 2, bias=True), nn.LeakyReLU(),
+                                     nn.Conv2d(set_dim(0), set_dim(1), 3, 2, bias=False), nn.ReLU(),
+                                     nn.Conv2d(set_dim(1), set_dim(2), 3, 2, bias=False), nn.ReLU(),
+                                     nn.Conv2d(set_dim(2), set_dim(3), 3, 2, bias=True), nn.ReLU(),
+                                     nn.Conv2d(set_dim(3), set_dim(4), 3, 1, bias=True), nn.ReLU(),
+                                     nn.Conv2d(set_dim(4), set_dim(5), 3, 1, bias=True), nn.ReLU(),
+                                     NnReshape(-1),
+                                     nn.Linear(set_dim(5), mid_dim), nn.ReLU(),
+                                     nn.Linear(mid_dim, 1))
+
+        layer_norm(self.net[-1], std=0.5)  # output layer for Q value
+
+    def forward(self, state,past_state,att_bias):
+        a = self.net(state)  # Q value
+        return a
+
 """utils"""
 
 
@@ -467,8 +514,8 @@ class DenseNet(nn.Module):  # plan to hyper-param: layer_number
         self.out_dim = mid_dim * 2
 
     def forward(self, x1):  # x1.shape == (-1, mid_dim // 2)
-        x2 = torch.cat((x1, self.dense1(x1)), dim=1)
-        x3 = torch.cat((x2, self.dense2(x2)), dim=1)
+        x2 = torch.cat((x1, self.dense1(x1)), dim=2)
+        x3 = torch.cat((x2, self.dense2(x2)), dim=2)
         return x3  # x3.shape == (-1, mid_dim * 2)
 
 
