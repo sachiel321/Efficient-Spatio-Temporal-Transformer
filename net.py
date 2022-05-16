@@ -74,8 +74,8 @@ class CausalSelfAttention(nn.Module):
         tensor([-1.0000e+09, -1.0000e+09,  2.0000e+00,  3.0000e+00])
         '''
         if attn_bias is not None:
-            attn_bias = attn_bias.view(B, T_q, T_v, self.n_head, C // self.n_head)
-            attn_bias = rearrange(attn_bias,'b q v h s -> b h q v s').mean(-1)
+            # attn_bias = attn_bias.view(B, T_q, T_v, self.n_head, C // self.n_head)
+            # attn_bias = rearrange(attn_bias,'b q v h s -> b h q v s').mean(-1)
             att_scores = att_scores + attn_bias
         att_probs = F.softmax(att_scores, dim=-1)
         att_probs = self.attn_drop(att_probs)
@@ -224,17 +224,17 @@ class BlockGTrXLTS(nn.Module):
         self.gate2S = GRUGate(configS.n_embd, configS.init_gru_gate_bias)
 
     def forward(self, q,k,v, attn_bias=None):
-        att_outputT, layer_attT = self.attnT(self.ln1T(q),self.ln1T(k),self.ln1T(v),attn_bias)
+        att_outputT, layer_attT = self.attnT(self.ln1T(q),self.ln1T(k),self.ln1T(v),attn_bias[0])
         q = self.gate1T((q,att_outputT))
         q = self.gate2T((q,self.mlpT(self.ln2T(q))))
 
         q = self.transformT2S_q(q.transpose(1, 2))
         k = self.transformT2S(k.transpose(1, 2))
         v = self.transformT2S(v.transpose(1, 2))
-        # if attn_bias is not None:
-        #     attn_bias = attn_bias.transpose(1, 2)
+        att_biasT = self.transformT2S(attn_bias)
+        att_biasT = self.transformT2S_q(att_biasT.transpose(-1, -2)).transpose(-1, -2)
 
-        att_outputS, layer_attS = self.attnS(self.ln1S(q),self.ln1S(k),self.ln1S(v),None)
+        att_outputS, layer_attS = self.attnS(self.ln1S(q),self.ln1S(k),self.ln1S(v),att_biasT)
         q = self.gate1S((q,att_outputS))
         q = self.gate2S((q,self.mlpS(self.ln2S(q))))
         q = self.transformS2T(q)
@@ -256,17 +256,14 @@ class BlockSeq(nn.Module):
             self.layer = nn.Sequential(*[Block(config) for _ in range(config.n_layer)])
 
     def forward(self,  q,k,v, attn_bias=None):
-        # if self.use_TS == True:
-        #     q = k
-        all_encoder_layers = []
-        all_encoder_atts = []
-        for _, layer_module in enumerate(self.layer):
-            # all_encoder_layers.append(q)
-            q, layer_att = layer_module( q,k,v, attn_bias)
-            # all_encoder_atts.append(layer_att)
+        # if self.use_TS == False:
+        #     attn_bias = attn_bias[0]
 
-        all_encoder_layers.append(q)
-        return q, all_encoder_layers, all_encoder_atts
+        for _, layer_module in enumerate(self.layer):
+            q, layer_att = layer_module( q,k,v, attn_bias)
+            del layer_att
+
+        return q
 
 
 class STT(nn.Module):
@@ -276,11 +273,13 @@ class STT(nn.Module):
         super().__init__()
 
         self.embd = config.n_embd
+        self.n_head = config.n_head
         self.tok_emb = nn.Linear(config.state_dim, config.n_embd)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size, config.n_embd))
         self.drop = nn.Dropout(config.embd_pdrop)
         self.ln_f = nn.LayerNorm(config.n_embd)
-        self.att_bias_encoder = nn.Linear(config.state_dim,config.n_embd)
+        self.att_bias_encoderS = nn.Linear(config.state_dim,1)
+        # self.att_bias_encoderT = nn.Linear(config.block_size,1)
         # transformer
         self.blocks = BlockSeq(config)
         self.block_size = config.block_size
@@ -312,11 +311,13 @@ class STT(nn.Module):
         position_embeddings_kv = self.pos_emb[:, :t_k, :] # each position maps to a (learnable) vector
         if att_bias is not None:
             att_bias = repeat(att_bias,'q k c -> b q k c',b=b)
-            att_bias = self.att_bias_encoder(att_bias.to(q.device))
+            att_bias = repeat(att_bias,'b q k c -> b h q k c',h=self.n_head)
+            att_biasS = self.att_bias_encoderS(att_bias.to(q.device)).squeeze(-1)
+            # att_biasT = self.att_bias_encoderT(rearrange(att_bias,'b h q k c -> b h q c k').to(q.device)).squeeze(-1)
         q = self.drop(self.tok_emb(q) + position_embeddings_q)
         k = self.drop(self.tok_emb(k) + position_embeddings_kv)
         v = self.drop(self.tok_emb(v) + position_embeddings_kv)
-        x, encoded_layers, layer_atts = self.blocks(q,k,v,att_bias)
+        x = self.blocks(q,k,v,att_biasS)
         x = self.ln_f(x)
 
         return x.mean(1).squeeze(1)

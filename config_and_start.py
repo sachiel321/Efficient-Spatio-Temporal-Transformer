@@ -61,11 +61,11 @@ config_ppo = {
         'state_dim': None,
         'mid_dim':128,
         'embeddingT' : 32,
-        'embeddingS':64,
+        'embeddingS':32,
         'atthead': 4,
         'attlayer': 1,
         'action_dim': None,
-        'block_size': 6,
+        'block_size': 9,
         'block_size_state':1,
         'batch_size': 256,
         'use_TS': True,
@@ -90,7 +90,7 @@ def demo2_ppo():
     }
     config_ppo['InitDict']['state_dim'] = env['state_dim']
     config_ppo['InitDict']['action_dim'] = env['action_dim']
-    config_ppo['InitDict']['block_size'] = 6
+    config_ppo['InitDict']['block_size'] = 9
     config_ppo['agent']['if_load_model'] = False
     config_ppo['agent']['actor_path'] = ''
     config_ppo['agent']['critic_path'] = ''
@@ -125,7 +125,7 @@ def demo2_ppo():
 
 if __name__ == '__main__':
     ray.init()
-    #ray.init(local_mode=True)
+    # ray.init(local_mode=True)
     #ray.init(num_cpus=32)
     # ray.init(num_cpus=12, num_gpus=0)
 
