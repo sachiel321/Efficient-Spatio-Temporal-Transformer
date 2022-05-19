@@ -231,7 +231,7 @@ class BlockGTrXLTS(nn.Module):
         q = self.transformT2S_q(q.transpose(1, 2))
         k = self.transformT2S(k.transpose(1, 2))
         v = self.transformT2S(v.transpose(1, 2))
-        att_biasT = self.transformT2S(attn_bias)
+        att_biasT = attn_bias[1]
         att_biasT = self.transformT2S_q(att_biasT.transpose(-1, -2)).transpose(-1, -2)
 
         att_outputS, layer_attS = self.attnS(self.ln1S(q),self.ln1S(k),self.ln1S(v),att_biasT)
@@ -256,8 +256,8 @@ class BlockSeq(nn.Module):
             self.layer = nn.Sequential(*[Block(config) for _ in range(config.n_layer)])
 
     def forward(self,  q,k,v, attn_bias=None):
-        # if self.use_TS == False:
-        #     attn_bias = attn_bias[0]
+        if self.use_TS == False:
+            attn_bias = attn_bias[0]
 
         for _, layer_module in enumerate(self.layer):
             q, layer_att = layer_module( q,k,v, attn_bias)
@@ -279,7 +279,7 @@ class STT(nn.Module):
         self.drop = nn.Dropout(config.embd_pdrop)
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.att_bias_encoderS = nn.Linear(config.state_dim,1)
-        # self.att_bias_encoderT = nn.Linear(config.block_size,1)
+        self.att_bias_encoderT = nn.Linear(config.block_size,1)
         # transformer
         self.blocks = BlockSeq(config)
         self.block_size = config.block_size
@@ -313,11 +313,12 @@ class STT(nn.Module):
             att_bias = repeat(att_bias,'q k c -> b q k c',b=b)
             att_bias = repeat(att_bias,'b q k c -> b h q k c',h=self.n_head)
             att_biasS = self.att_bias_encoderS(att_bias.to(q.device)).squeeze(-1)
-            # att_biasT = self.att_bias_encoderT(rearrange(att_bias,'b h q k c -> b h q c k').to(q.device)).squeeze(-1)
+            att_biasT = self.att_bias_encoderT(rearrange(att_bias,'b h q k c -> b h q c k').to(q.device)).squeeze(-1)
+            att_biasT = self.tok_emb(att_biasT)
         q = self.drop(self.tok_emb(q) + position_embeddings_q)
         k = self.drop(self.tok_emb(k) + position_embeddings_kv)
         v = self.drop(self.tok_emb(v) + position_embeddings_kv)
-        x = self.blocks(q,k,v,att_biasS)
+        x = self.blocks(q,k,v,[att_biasS,att_biasT])
         x = self.ln_f(x)
 
         return x.mean(1).squeeze(1)
