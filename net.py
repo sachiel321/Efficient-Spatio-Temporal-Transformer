@@ -315,6 +315,9 @@ class STT(nn.Module):
             att_biasS = self.att_bias_encoderS(att_bias.to(q.device)).squeeze(-1)
             att_biasT = self.att_bias_encoderT(rearrange(att_bias,'b h q k c -> b h q c k').to(q.device)).squeeze(-1)
             att_biasT = self.tok_emb(att_biasT)
+        else:
+            att_biasS = None
+            att_biasT = None
         q = self.drop(self.tok_emb(q) + position_embeddings_q)
         k = self.drop(self.tok_emb(k) + position_embeddings_kv)
         v = self.drop(self.tok_emb(v) + position_embeddings_kv)
