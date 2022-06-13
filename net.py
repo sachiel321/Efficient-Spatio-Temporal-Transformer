@@ -146,9 +146,7 @@ class Block(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.ln1 = nn.LayerNorm(config.n_embd)
         self.ln2 = nn.LayerNorm(config.n_embd)
-        self.attn = CausalSelfAttention(config)
         self.mlp = nn.Sequential(
             nn.Linear(config.n_embd, 4 * config.n_embd),
             nn.GELU(),
@@ -157,10 +155,9 @@ class Block(nn.Module):
         )
 
     def forward(self, q,k,v, attn_bias=None):
-        att_output, layer_att = self.attn(self.ln1(q),self.ln1(k),self.ln1(v),attn_bias)
-        x = q + att_output
-        x = x + self.mlp(self.ln2(x))
-        return x, layer_att
+        
+        x = self.mlp(self.ln2(q))
+        return x, None
 
 class BlockGTrXL(nn.Module):
     """ an unassuming Transformer block """

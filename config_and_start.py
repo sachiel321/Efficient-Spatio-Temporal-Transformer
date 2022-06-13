@@ -65,12 +65,12 @@ config_ppo = {
         'atthead': 4,
         'attlayer': 1,
         'action_dim': None,
-        'block_size': 9,
+        'block_size': 6,
         'block_size_state':1,
         'batch_size': 256,
-        'use_TS': True,
+        'use_TS': False,
         'use_GTrXL':True,
-        'use_attbias':True,
+        'use_attbias':False,
         'init_gru_gate_bias':2.0
     },
 }
@@ -85,7 +85,7 @@ def demo2_ppo():
         'if_discrete_action': False,
         'reward_dim': 1,
         'target_reward': 2e6,
-        'max_step': 150,
+        'max_step': 200,
         #'action_mode': 'joint_positions'
     }
     config_ppo['InitDict']['state_dim'] = env['state_dim']
@@ -96,18 +96,18 @@ def demo2_ppo():
     config_ppo['agent']['critic_path'] = ''
     config_ppo['agent']['lambda_entropy'] = 0.05
     config_ppo['agent']['lambda_gae_adv'] = 0.97
-    config_ppo['interactor']['rollout_num'] = 40
-    config_ppo['agent']['learning_rate'] = 0.4e-4
-    config_ppo['trainer']['batch_size'] = 4096
+    config_ppo['interactor']['rollout_num'] = 16
+    config_ppo['agent']['learning_rate'] = 1e-4
+    config_ppo['trainer']['batch_size'] = 1024
     config_ppo['trainer']['sample_step'] = env['max_step'] * config_ppo['interactor']['rollout_num']
     config_ppo['InitDict']['batch_size'] = config_ppo['trainer']['batch_size']
     config_ppo['interactor']['horizon_step'] = config_ppo['trainer']['sample_step']
     config_ppo['trainer']['policy_reuse'] = 4
     config_ppo['interactor']['gamma'] = 0.99
-    config_ppo['evaluator']['break_step'] = int(2e5)
+    config_ppo['evaluator']['break_step'] = int(1e5)
     config_ppo['buffer']['max_buf'] = config_ppo['interactor']['horizon_step']
     config_ppo['env'] = env
-    config_ppo['gpu_id'] = '0'
+    config_ppo['gpu_id'] = '2'
     config_ppo['if_cwd_time'] = True
     config_ppo['expconfig'] = 'TS'
     if config_ppo['InitDict']['use_GTrXL'] and config_ppo['InitDict']['use_attbias']:
@@ -117,8 +117,8 @@ def demo2_ppo():
     elif config_ppo['InitDict']['use_attbias']:
         config_ppo['expconfig'] = config_ppo['expconfig']+'attbias'
     else:
-        config_ppo['expconfig'] = config_ppo['expconfig']+'att'
-    config_ppo['random_seed'] = 58
+        config_ppo['expconfig'] = config_ppo['expconfig']+'MLP'
+    config_ppo['random_seed'] = 49
     beginer(config_ppo)
 
 
